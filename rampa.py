@@ -4,28 +4,28 @@ import pandas as pd
 import streamlit as st
 from openpyxl import load_workbook
 
-st.set_page_config(page_title="Raspodjela tura po rampama", page_icon="🚚")
-st.title("🚚 Raspodjela tura po rampama")
-st.write("Uploadaj Excel file s turama, a aplikacija će ih automatski rasporediti na rampe.")
+st.set_page_config(page_title="Rampenverteilung für Touren", page_icon="🚚")
+st.title("🚚 Rampenverteilung für Touren")
+st.write("Laden Sie Ihre Excel-Datei mit den Touren hoch, und die App verteilt sie automatisch auf die Rampen.")
 
-# ==== PODESIVE POSTAVKE (u sidebaru) ====
-st.sidebar.header("Postavke")
-BROJ_RAMPI = st.sidebar.number_input("Broj rampi", min_value=1, max_value=20, value=5)
-MAX_TURA_PO_RAMPI = st.sidebar.number_input("Max tura po rampi", min_value=1, max_value=10, value=2)
+# ==== EINSTELLUNGEN (in der Seitenleiste) ====
+st.sidebar.header("Einstellungen")
+BROJ_RAMPI = st.sidebar.number_input("Anzahl der Rampen", min_value=1, max_value=20, value=5)
+MAX_TURA_PO_RAMPI = st.sidebar.number_input("Max. Touren pro Rampe", min_value=1, max_value=10, value=2)
 TEZINA_UDIO = st.sidebar.slider(
-    "Udio težine u balansiranju (0 = samo broj narudžbi, 1 = samo težina)",
+    "Gewichtungsanteil beim Ausgleich (0 = nur Anzahl der Bestellungen, 1 = nur Gewicht)",
     min_value=0.0, max_value=1.0, value=0.5, step=0.1
 )
 trazeni_brojevi_input = st.sidebar.text_input(
-    "Brojevi u nazivu lista koji označavaju smjenu (odvojeno zarezom)",
+    "Zahlen im Blattnamen, die eine Schicht kennzeichnen (durch Komma getrennt)",
     value="6, 10, 14, 16"
 )
 TRAZENI_BROJEVI = [b.strip() for b in trazeni_brojevi_input.split(",") if b.strip()]
 
-uploaded_file = st.file_uploader("Uploadaj Excel file (.xlsx)", type=["xlsx"])
+uploaded_file = st.file_uploader("Excel-Datei hochladen (.xlsx)", type=["xlsx"])
 
 
-# ==== POMOĆNE FUNKCIJE ====
+# ==== HILFSFUNKTIONEN ====
 
 def sheet_odgovara(sheet_name, brojevi):
     for broj in brojevi:
@@ -54,7 +54,7 @@ def obradi_list(file_bytes, sheet_name, broj_rampi, max_tura_po_rampi, tezina_ud
     header_idx = pronadji_header_redak(raw)
 
     if header_idx is None:
-        log.append(f"⏭️ Preskačem '{sheet_name}': nema kolone 'Tour', vjerojatno nije relevantan list.")
+        log.append(f"⏭️ Übersprungen '{sheet_name}': keine Spalte 'Tour' gefunden, vermutlich kein relevantes Blatt.")
         return None
 
     file_bytes.seek(0)
@@ -70,18 +70,18 @@ def obradi_list(file_bytes, sheet_name, broj_rampi, max_tura_po_rampi, tezina_ud
                  if kol is None]
 
     if nedostaje:
-        log.append(f"⏭️ Preskačem '{sheet_name}': nedostaju kolone koje sadrže {nedostaje}. "
-                    f"Pronađene kolone: {df.columns.tolist()}")
+        log.append(f"⏭️ Übersprungen '{sheet_name}': fehlende Spalten mit {nedostaje}. "
+                    f"Gefundene Spalten: {df.columns.tolist()}")
         return None
 
     df = df.rename(columns={kol_isell: "iSell", kol_gew: "Gew", kol_tour: "Tour"})
     df = df.dropna(subset=["Tour"]).copy()
 
     if df.empty:
-        log.append(f"⏭️ Preskačem '{sheet_name}': nema podataka nakon čišćenja.")
+        log.append(f"⏭️ Übersprungen '{sheet_name}': keine Daten nach der Bereinigung.")
         return None
 
-    # brojevi tura kao tekst, bez decimala
+    # Tournummern als Text, ohne Dezimalstellen
     df["Tour"] = df["Tour"].astype(int).astype(str)
 
     tour_summary = (
@@ -94,8 +94,8 @@ def obradi_list(file_bytes, sheet_name, broj_rampi, max_tura_po_rampi, tezina_ud
     max_tura_po_rampi_lokalno = max_tura_po_rampi
     if broj_tura > broj_rampi * max_tura_po_rampi:
         max_tura_po_rampi_lokalno = -(-broj_tura // broj_rampi)  # ceil
-        log.append(f"⚠️ '{sheet_name}': {broj_tura} tura, povećavam limit na "
-                    f"{max_tura_po_rampi_lokalno} tura/rampi.")
+        log.append(f"⚠️ '{sheet_name}': {broj_tura} Touren, Limit wird auf "
+                    f"{max_tura_po_rampi_lokalno} Touren/Rampe erhöht.")
 
     max_broj = tour_summary["broj_narudzbi"].max()
     max_tez = tour_summary["ukupna_tezina"].max()
@@ -129,7 +129,7 @@ def obradi_list(file_bytes, sheet_name, broj_rampi, max_tura_po_rampi, tezina_ud
         rampe[najbolja_rampa]["broj_narudzbi"] += red["broj_narudzbi"]
         rampe[najbolja_rampa]["ukupna_tezina"] += red["ukupna_tezina"]
 
-    # preslagivanje: najviše narudžbi (pa najveća težina) -> Rampa 1, najmanje -> zadnja rampa
+    # Neuanordnung: meiste Bestellungen (dann höchstes Gewicht) -> Rampe 1, wenigste -> letzte Rampe
     poredak = sorted(
         rampe.items(),
         key=lambda item: (item[1]["broj_narudzbi"], item[1]["ukupna_tezina"]),
@@ -140,7 +140,7 @@ def obradi_list(file_bytes, sheet_name, broj_rampi, max_tura_po_rampi, tezina_ud
     for novi_broj, (_, podaci) in enumerate(poredak, start=1):
         rampe_preslozene[novi_broj] = podaci
 
-    log.append(f"✅ '{sheet_name}' obrađen ({broj_tura} tura).")
+    log.append(f"✅ '{sheet_name}' verarbeitet ({broj_tura} Touren).")
     return rampe_preslozene
 
 
@@ -150,7 +150,7 @@ def obradi_excel(uploaded_file, broj_rampi, max_tura_po_rampi, tezina_udio, traz
     xls = pd.ExcelFile(file_bytes)
 
     listovi = [s for s in xls.sheet_names if sheet_odgovara(s, trazeni_brojevi)]
-    log.append(f"Pronađeni listovi za obradu: {listovi}")
+    log.append(f"Gefundene Blätter zur Verarbeitung: {listovi}")
 
     rezultati = {}
     for sheet in listovi:
@@ -159,19 +159,19 @@ def obradi_excel(uploaded_file, broj_rampi, max_tura_po_rampi, tezina_udio, traz
         if rampe is not None:
             rezultati[sheet] = rampe
 
-    # spremi rezultate natrag u file (u memoriji), na nove listove
+    # Ergebnisse zurück in die Datei speichern (im Arbeitsspeicher), auf neuen Blättern
     output = io.BytesIO(uploaded_file.getvalue())
     wb = load_workbook(output)
 
     for sheet, rampe in rezultati.items():
-        novi_naziv = f"{sheet} - Rampa"[:31]
+        novi_naziv = f"{sheet} - Rampe"[:31]
         if novi_naziv in wb.sheetnames:
             del wb[novi_naziv]
         ws = wb.create_sheet(novi_naziv)
         ws.append([sheet.upper()])
         for r in range(1, broj_rampi + 1):
             ture_str = ", ".join(str(t) for t in rampe[r]["ture"])
-            ws.append([f"RAMPA {r} -> {ture_str}"])
+            ws.append([f"RAMPE {r} -> {ture_str}"])
 
     final_output = io.BytesIO()
     wb.save(final_output)
@@ -180,38 +180,38 @@ def obradi_excel(uploaded_file, broj_rampi, max_tura_po_rampi, tezina_udio, traz
     return final_output, rezultati, log
 
 
-# ==== GLAVNI DIO SUČELJA ====
+# ==== HAUPTTEIL DER OBERFLÄCHE ====
 
 if uploaded_file is not None:
-    if st.button("Obradi file"):
-        with st.spinner("Obrađujem..."):
+    if st.button("Datei verarbeiten"):
+        with st.spinner("Verarbeitung läuft..."):
             try:
                 rezultat_file, rezultati, log = obradi_excel(
                     uploaded_file, BROJ_RAMPI, MAX_TURA_PO_RAMPI, TEZINA_UDIO, TRAZENI_BROJEVI
                 )
             except Exception as e:
-                st.error(f"Došlo je do greške: {e}")
+                st.error(f"Es ist ein Fehler aufgetreten: {e}")
                 st.stop()
 
-        st.subheader("Log obrade")
+        st.subheader("Verarbeitungsprotokoll")
         for linija in log:
             st.write(linija)
 
         if rezultati:
-            st.subheader("Pregled rezultata")
+            st.subheader("Ergebnisübersicht")
             for sheet, rampe in rezultati.items():
                 st.markdown(f"**{sheet.upper()}**")
                 for r in range(1, BROJ_RAMPI + 1):
                     ture_str = ", ".join(str(t) for t in rampe[r]["ture"])
-                    st.write(f"RAMPA {r} -> {ture_str}")
+                    st.write(f"RAMPE {r} -> {ture_str}")
 
             st.download_button(
-                label="📥 Preuzmi obrađeni Excel",
+                label="📥 Verarbeitete Excel-Datei herunterladen",
                 data=rezultat_file,
-                file_name="rezultat_rampe.xlsx",
+                file_name="ergebnis_rampen.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
         else:
-            st.warning("Nijedan list nije uspješno obrađen. Provjeri log iznad.")
+            st.warning("Kein Blatt konnte erfolgreich verarbeitet werden. Bitte Protokoll oben prüfen.")
 else:
-    st.info("Čekam da uploadaš Excel file.")
+    st.info("Warte auf Upload der Excel-Datei.")
